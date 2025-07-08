@@ -1,0 +1,9 @@
+// Family Tree
+digraph {
+	1 [label="Jayadevan Gurubalan
+(1982-11-24 - Alive)"]
+	2 [label="Gurubalan Vaithiyalingam
+(1946-09-30 - 1983-06-02)"]
+	2 -> 1 [label=Son]
+	1 -> 2 [label=Son]
+}
