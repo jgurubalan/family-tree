@@ -117,6 +117,59 @@ def view_person():
     for r in rels:
         print(f"  {r.person1.name} -[{r.relation_type}]-> {r.person2.name}")
 
+def edit_person():
+    pid = int(input("Enter Person ID to edit: "))
+    person = session.query(Person).get(pid)
+    if not person:
+        print("Person not found.")
+        return
+    print(f"Editing {person.name}...")
+    name = input(f"New name (blank to keep '{person.name}'): ") or person.name
+    dob = parse_date(input(f"New DOB (blank to keep '{person.dob}'): ") or str(person.dob))
+    dod = parse_date(input(f"New DOD (blank to keep '{person.dod}'): ") or str(person.dod))
+    person.name = name
+    person.dob = dob
+    person.dod = dod
+    session.commit()
+    print("Person updated.")
+
+
+def delete_person():
+    pid = int(input("Enter Person ID to delete: "))
+    person = session.query(Person).get(pid)
+    if not person:
+        print("Person not found.")
+        return
+    confirm = input(f"Are you sure you want to delete {person.name}? This will remove all associated data. (y/n): ")
+    if confirm.lower() == 'y':
+        session.delete(person)
+        session.commit()
+        print("Person deleted.")
+
+
+def edit_relationship():
+    rid = int(input("Enter Relationship ID to edit: "))
+    rel = session.query(Relationship).get(rid)
+    if not rel:
+        print("Relationship not found.")
+        return
+    print(f"Editing relation: {rel.person1.name} -[{rel.relation_type}]-> {rel.person2.name}")
+    new_type = input(f"New relation type (blank to keep '{rel.relation_type}'): ") or rel.relation_type
+    rel.relation_type = new_type
+    session.commit()
+    print("Relationship updated.")
+
+def delete_relationship():
+    rid = int(input("Enter Relationship ID to delete: "))
+    rel = session.query(Relationship).get(rid)
+    if not rel:
+        print("Relationship not found.")
+        return
+    session.delete(rel)
+    session.commit()
+    print("Relationship deleted.")
+
+
 def visualize_family_tree():
     pid = int(input("Enter Person ID to visualize: "))
     depth = int(input("Enter depth (e.g., 2): ") or 2)
@@ -153,6 +206,10 @@ def menu():
         print("5. Search person")
         print("6. View person details")
         print("7. Visualize family tree")
+        print("8. Edit person")
+        print("9. Delete person")
+        print("10. Edit relationship")
+        print("11. Delete relationship")
         print("0. Exit")
         choice = input("Enter your choice: ")
 
@@ -170,6 +227,14 @@ def menu():
             view_person()
         elif choice == "7":
             visualize_family_tree()
+        elif choice == "8":
+            edit_person()
+        elif choice == "9":
+            delete_person()
+        elif choice == "10":
+            edit_relationship()
+        elif choice == "11":
+            delete_relationship()
         elif choice == "0":
             print("Goodbye!")
             break
