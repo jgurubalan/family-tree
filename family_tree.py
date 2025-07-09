@@ -1,8 +1,6 @@
-
-
-# Full working script: family_tree.py
-# Features: Add person, relationship, event, memo, search, view, visualize
-# Requirements: sqlalchemy, graphviz
+# Enhanced family_tree.py
+# Features: Add/edit/delete person, relationship, events, memos, visualization
+# Fixes: Uses session.get(), input validation, cascade deletes, improved graph output
 
 from sqlalchemy import create_engine, Column, Integer, String, Date, ForeignKey, Text
 from sqlalchemy.orm import declarative_base, sessionmaker, relationship
@@ -17,8 +15,8 @@ class Person(Base):
     name = Column(String, nullable=False)
     dob = Column(Date, nullable=True)
     dod = Column(Date, nullable=True)
-    events = relationship("Event", back_populates="person")
-    memos = relationship("Memo", back_populates="person")
+    events = relationship("Event", back_populates="person", cascade="all, delete-orphan")
+    memos = relationship("Memo", back_populates="person", cascade="all, delete-orphan")
 
 class Relationship(Base):
     __tablename__ = 'relationships'
@@ -56,6 +54,13 @@ def parse_date(date_str):
     except:
         return None
 
+def input_int(prompt):
+    try:
+        return int(input(prompt))
+    except ValueError:
+        print("Invalid input. Expected a number.")
+        return None
+
 def add_person():
     name = input("Name: ")
     dob = parse_date(input("Date of Birth (YYYY-MM-DD): "))
@@ -66,8 +71,9 @@ def add_person():
     print(f"Added person with ID: {person.id}")
 
 def add_relationship():
-    id1 = int(input("Person 1 ID: "))
-    id2 = int(input("Person 2 ID: "))
+    id1 = input_int("Person 1 ID: ")
+    id2 = input_int("Person 2 ID: ")
+    if id1 is None or id2 is None: return
     relation = input("Relation type (parent/child/spouse/etc.): ")
     rel = Relationship(person1_id=id1, person2_id=id2, relation_type=relation)
     session.add(rel)
@@ -75,8 +81,10 @@ def add_relationship():
     print("Relationship added.")
 
 def add_event():
-    pid = int(input("Person ID: "))
-    etype = input("Event type (birth/marriage/etc.): ")
+    pid = input_int("Person ID: ")
+    if pid is None: return
+    print("Event types: birth, marriage, death, graduation, etc.")
+    etype = input("Event type: ")
     edate = parse_date(input("Date (YYYY-MM-DD): "))
     desc = input("Description: ")
     event = Event(person_id=pid, event_type=etype, event_date=edate, description=desc)
@@ -85,7 +93,8 @@ def add_event():
     print("Event added.")
 
 def add_memo():
-    pid = int(input("Person ID: "))
+    pid = input_int("Person ID: ")
+    if pid is None: return
     text = input("Memo text: ")
     memo = Memo(person_id=pid, content=text)
     session.add(memo)
@@ -99,8 +108,9 @@ def search_person():
         print(f"{p.id}: {p.name} (DOB: {p.dob}, DOD: {p.dod})")
 
 def view_person():
-    pid = int(input("Enter Person ID: "))
-    person = session.query(Person).get(pid)
+    pid = input_int("Enter Person ID: ")
+    if pid is None: return
+    person = session.get(Person, pid)
     if not person:
         print("Not found.")
         return
@@ -110,7 +120,7 @@ def view_person():
         print(f"  {e.event_type} on {e.event_date}: {e.description}")
     print("\nMemos:")
     for m in person.memos:
-        print(f"  {m.content}")
+        print(f"  {m.content[:80]}{'...' if len(m.content) > 80 else ''}")
     print("\nRelationships:")
     rels = session.query(Relationship).filter(
         (Relationship.person1_id == pid) | (Relationship.person2_id == pid)).all()
@@ -118,8 +128,9 @@ def view_person():
         print(f"  {r.person1.name} -[{r.relation_type}]-> {r.person2.name}")
 
 def edit_person():
-    pid = int(input("Enter Person ID to edit: "))
-    person = session.query(Person).get(pid)
+    pid = input_int("Enter Person ID to edit: ")
+    if pid is None: return
+    person = session.get(Person, pid)
     if not person:
         print("Person not found.")
         return
@@ -133,35 +144,36 @@ def edit_person():
     session.commit()
     print("Person updated.")
 
-
 def delete_person():
-    pid = int(input("Enter Person ID to delete: "))
-    person = session.query(Person).get(pid)
+    pid = input_int("Enter Person ID to delete: ")
+    if pid is None: return
+    person = session.get(Person, pid)
     if not person:
         print("Person not found.")
         return
-    confirm = input(f"Are you sure you want to delete {person.name}? This will remove all associated data. (y/n): ")
+    confirm = input(f"Are you sure you want to delete {person.name}? (y/n): ")
     if confirm.lower() == 'y':
         session.delete(person)
         session.commit()
         print("Person deleted.")
 
-
 def edit_relationship():
-    rid = int(input("Enter Relationship ID to edit: "))
-    rel = session.query(Relationship).get(rid)
+    rid = input_int("Enter Relationship ID to edit: ")
+    if rid is None: return
+    rel = session.get(Relationship, rid)
     if not rel:
         print("Relationship not found.")
         return
-    print(f"Editing relation: {rel.person1.name} -[{rel.relation_type}]-> {rel.person2.name}")
+    print(f"Editing: {rel.person1.name} -[{rel.relation_type}]-> {rel.person2.name}")
     new_type = input(f"New relation type (blank to keep '{rel.relation_type}'): ") or rel.relation_type
     rel.relation_type = new_type
     session.commit()
     print("Relationship updated.")
 
 def delete_relationship():
-    rid = int(input("Enter Relationship ID to delete: "))
-    rel = session.query(Relationship).get(rid)
+    rid = input_int("Enter Relationship ID to delete: ")
+    if rid is None: return
+    rel = session.get(Relationship, rid)
     if not rel:
         print("Relationship not found.")
         return
@@ -169,17 +181,19 @@ def delete_relationship():
     session.commit()
     print("Relationship deleted.")
 
-
 def visualize_family_tree():
-    pid = int(input("Enter Person ID to visualize: "))
-    depth = int(input("Enter depth (e.g., 2): ") or 2)
+    pid = input_int("Enter Person ID to visualize: ")
+    if pid is None: return
+    depth = input_int("Enter depth (e.g., 2): ") or 2
     dot = graphviz.Digraph(comment='Family Tree')
+    dot.attr(rankdir='TB')
+    dot.attr('node', shape='box', style='filled', color='lightgrey')
     visited = set()
 
     def dfs(current_id, current_depth):
         if current_depth > depth or current_id in visited:
             return
-        person = session.query(Person).get(current_id)
+        person = session.get(Person, current_id)
         if not person:
             return
         label = f"{person.name}\n({person.dob} - {person.dod or 'Alive'})"
@@ -199,49 +213,25 @@ def visualize_family_tree():
 def menu():
     while True:
         print("\n--- Family Tree Menu ---")
-        print("1. Add person")
-        print("2. Add relationship")
-        print("3. Add event")
-        print("4. Add memo")
-        print("5. Search person")
-        print("6. View person details")
-        print("7. Visualize family tree")
-        print("8. Edit person")
-        print("9. Delete person")
-        print("10. Edit relationship")
-        print("11. Delete relationship")
+        print("1. Add person\n2. Add relationship\n3. Add event\n4. Add memo")
+        print("5. Search person\n6. View person details\n7. Visualize family tree")
+        print("8. Edit person\n9. Delete person\n10. Edit relationship\n11. Delete relationship")
         print("0. Exit")
         choice = input("Enter your choice: ")
-
-        if choice == "1":
-            add_person()
-        elif choice == "2":
-            add_relationship()
-        elif choice == "3":
-            add_event()
-        elif choice == "4":
-            add_memo()
-        elif choice == "5":
-            search_person()
-        elif choice == "6":
-            view_person()
-        elif choice == "7":
-            visualize_family_tree()
-        elif choice == "8":
-            edit_person()
-        elif choice == "9":
-            delete_person()
-        elif choice == "10":
-            edit_relationship()
-        elif choice == "11":
-            delete_relationship()
-        elif choice == "0":
+        actions = {
+            "1": add_person, "2": add_relationship, "3": add_event, "4": add_memo,
+            "5": search_person, "6": view_person, "7": visualize_family_tree,
+            "8": edit_person, "9": delete_person, "10": edit_relationship,
+            "11": delete_relationship
+        }
+        if choice == "0":
             print("Goodbye!")
             break
+        action = actions.get(choice)
+        if action:
+            action()
         else:
             print("Invalid choice. Try again.")
-
-menu()
 
 if __name__ == "__main__":
     menu()
